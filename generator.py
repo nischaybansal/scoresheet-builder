@@ -21,8 +21,14 @@ OPQ_DIMS = ["Persuasive","Controlling","Outspoken","Independent Minded","Outgoin
 MQ_DIMS = ["Level of Activity","Achievement","Competition","Fear of Failure","Power","Immersion",
 "Commercial Outlook","Affiliation","Recognition","Personal Principles","Ease and Security",
 "Personal Growth","Interest","Flexibility","Autonomy","Material Reward","Progression","Status"]
-SJT_SCALES = ["Personal Recognition","Big Picture","Company Protocol","Delegative",
-"Managerial Judgement","Managing Objectives","One To One","People Management","Reputation Management"]
+SJT_VARIANTS = {
+    "Managerial": {"group":"Scenarios Management",
+        "dims":["Managerial Judgement","Managing Objectives","People Management","Reputation Management",
+                "Big Picture","Delegative","One To One","Team","Personal Recognition","Company Protocol"]},
+    "Executive": {"group":"Scenarios Executive Profile",
+        "dims":["Corporate Management","Managerial Judgement","Managing Objectives","People Management"]},
+}
+DEFAULT_SJT_VARIANT = "Managerial"
 
 # ---- tool registry: canonical order = online first, then offline ----
 # kind: 'online' (paste-stens), 'bars' (rubric anchors), 'bei' (interview questions)
@@ -48,7 +54,7 @@ OD_RAW_HEADERS = {             # row-2 raw export headers where known (cosmetic 
 TOOLS = {
     "OPQ":              {"kind":"online","dims":OPQ_DIMS,   "family":"online"},
     "MQ":               {"kind":"online","dims":MQ_DIMS,    "family":"online"},
-    "SJT":              {"kind":"online","dims":SJT_SCALES, "family":"online"},
+    "SJT":              {"kind":"online","dims":None,       "family":"online"},  # dims from SJT_VARIANTS
     "Verify":           {"kind":"online","dims":VERIFY_DIMS,"family":"online"},
     "Case Study":       {"kind":"bars","score_col":"H","family":"offline"},
     "Group Discussion": {"kind":"bars","score_col":"H","family":"offline"},
@@ -120,11 +126,15 @@ def _build_online(wb,name,dims,framework):
     from openpyxl.styles import Protection
     has_dir = (name=="OPQ")
     ws=wb.create_sheet(name)
+    disp=name
     key=("SCORING KEY (constant): Positive trait -> Score = roundup(Sten/2): 1-2=1 · 3-4=2 · 5-6=3 · 7-8=4 · 9-10=5.  "
          "Negative trait -> inverse: 1-2=5 · 3-4=4 · 5-6=3 · 7-8=2 · 9-10=1.") if has_dir else \
         ("SCORING KEY (constant): Score = roundup(Sten/2): 1-2=1 · 3-4=2 · 5-6=3 · 7-8=4 · 9-10=5.")
     avg=_avg_col(name)
-    _title(ws,f"{name}  —  online psychometric",key,avg)
+    if name=="SJT":
+        # label which variant this sheet was generated for
+        disp=f"SJT ({[k for k,v in SJT_VARIANTS.items() if v['dims']==dims][0]})" if any(v['dims']==dims for v in SJT_VARIANTS.values()) else name
+    _title(ws,f"{disp}  —  online psychometric",key,avg)
     ws["A4"]=("Scores flow automatically from the 'Onlines Data' sheet for the participant selected in "
               "Detailed Integration. Consultant maps up to "
               f"{TRAIT_SLOTS} traits per competency and writes the Rating 1-5 rubric descriptions"
@@ -237,11 +247,14 @@ def _build_bei(wb,name,framework):
     ws.freeze_panes=f"A{FB}"
 
 # ---------- Onlines Data (assessor pastes the export here) ----------
-def _build_onlines_data(wb):
+def _build_onlines_data(wb,sjt_variant=DEFAULT_SJT_VARIANT):
     ws=wb.create_sheet(OD_SHEET)
+    sv=SJT_VARIANTS[sjt_variant]
+    sjt_raw={d:f"{d}-STEN" for d in sv["dims"]}
+    OD_RAW_HEADERS.update(sjt_raw)
     groups=[("MQ.M5 Profile",MQ_DIMS),
             ("OPQ32 Profile",OPQ_DIMS+["Consistency Measure"]),
-            ("Scenarios Management Profile",SJT_SCALES),
+            (sv["group"],sv["dims"]),
             ("Verify",["Inductive Percentile","Inductive Score","Deductive percentile",
                        "Deductive Score","Numerical Percentile","Numerical Score","Overall"])]
     ident=["First Name","Last Name","Name","Email","Status"]
@@ -428,17 +441,21 @@ def _cluster_by_competency(framework):
         groups[comp].append(beh)
     return [(c, b) for c in order for b in groups[c]]
 
-def build_workbook(framework, selected_tools):
-    """framework: list of (competency, behaviour). selected_tools: subset of CANONICAL."""
+def build_workbook(framework, selected_tools, sjt_variant=DEFAULT_SJT_VARIANT):
+    """framework: list of (competency, behaviour). selected_tools: subset of CANONICAL.
+    sjt_variant: "Managerial" or "Executive" (shapes the SJT sheet + Onlines Data columns)."""
+    if sjt_variant not in SJT_VARIANTS: sjt_variant=DEFAULT_SJT_VARIANT
     selected=[t for t in CANONICAL if t in selected_tools]
     framework=_cluster_by_competency(framework)   # ensures per-competency averaging
     wb=openpyxl.Workbook(); wb.remove(wb.active)
     has_online=any(TOOLS[t]["family"]=="online" for t in selected)
     if has_online:
-        _build_onlines_data(wb)      # assessor pastes the export here (first sheet)
+        _build_onlines_data(wb,sjt_variant)  # assessor pastes the export here (first sheet)
     for name in selected:
         spec=TOOLS[name]
-        if spec["kind"]=="online": _build_online(wb,name,spec["dims"],framework)
+        if spec["kind"]=="online":
+            dims=SJT_VARIANTS[sjt_variant]["dims"] if name=="SJT" else spec["dims"]
+            _build_online(wb,name,dims,framework)
         elif spec["kind"]=="bars": _build_bars(wb,name,framework)
         elif spec["kind"]=="bei":  _build_bei(wb,name,framework)
     _build_tchart(wb,framework)
