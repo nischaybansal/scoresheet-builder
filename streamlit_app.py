@@ -110,7 +110,7 @@ selected = [t for t, on in [("OPQ", opq), ("MQ", mq), ("SJT", sjt), ("Verify", v
 
 # ---------------- STEP 3: generate ----------------
 st.markdown('<div class="sb-step">3 · Generate</div>', unsafe_allow_html=True)
-dc_name = st.text_input("File name (optional)", placeholder="e.g. Navitasys_DC_June")
+dc_name = st.text_input("File name (optional)", placeholder="e.g. Individual_Feedback_Scoresheet")
 
 if st.button("Build scoresheet", type="primary"):
     st.session_state.pop("result", None)
