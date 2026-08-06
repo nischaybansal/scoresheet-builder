@@ -173,7 +173,7 @@ tool_comps = {t: c for t, c in [("OPQ", opq_c), ("MQ", mq_c), ("SJT", sjt_c), ("
 
 # ---------------- STEP 3: generate ----------------
 st.markdown('<div class="sb-step">3 · Generate</div>', unsafe_allow_html=True)
-dc_name = st.text_input("File name (optional)", placeholder="e.g. Navitasys_DC_June")
+dc_name = st.text_input("File name (optional)", placeholder="e.g. Individual_Scoresheets")
 
 if st.button("Build scoresheet", type="primary"):
     st.session_state.pop("result", None)
